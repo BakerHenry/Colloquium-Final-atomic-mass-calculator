@@ -1,0 +1,262 @@
+---
+title: "Atomic Mass Calculator: Exploring Chemical Formulas"
+author: "Henry Baker"
+format:
+  html:
+    toc: true # Table of contents
+    code-fold: true # Allows hiding code blocks
+    code-summary: "Show/Hide Code"
+    theme: cosmo # A clean theme for your webpage
+---
+
+# Introduction to Atomic Mass and Scientific Computing
+
+Welcome to the Atomic Mass Calculator! This project serves as a practical demonstration of scientific computing principles, showcasing how Python, integrated within a Quarto framework, can solve problems from chemistry. Specifically, we'll build a tool to calculate the molecular mass of various chemical compounds given their formulas.
+
+Understanding atomic mass is fundamental in chemistry. Every element on the periodic table has a specific average atomic mass, reflecting the weighted average of its isotopes' masses. When elements combine to form compounds, their atomic masses sum up to create the molecular mass of that compound. This value is critical for stoichiometric calculations, determining reaction yields, and understanding chemical quantities.
+
+In this document, we will explore:
+1.  The theoretical background of atomic mass.
+2.  The implementation of a Python-based atomic mass calculator.
+3.  Visualization of chemical data using `matplotlib`.
+4.  Representation of chemical principles using LaTeX equations via `sympy`.
+5.  Data presentation with `pandas` tables.
+
+This project also argues for the power and efficiency of scientific computing. Manual calculations, especially for complex molecules, are tedious and prone to error. By automating these processes, we not only save time but also enhance accuracy and allow for rapid exploration of chemical concepts.
+
+## The Problem: Calculating Molecular Mass
+
+The core problem we are addressing is: given a chemical formula (e.g., $H_2O$, $C_6H_{12}O_6$), how do we programmatically calculate its total atomic mass? This requires:
+1.  A database of atomic masses for common elements.
+2.  A method to parse the chemical formula, identifying each element and its count.
+3.  A calculation engine to sum the masses based on the counts.
+
+### Key Concepts
+
+*   **Atomic Mass Unit (amu):** The standard unit for indicating mass on an atomic or molecular scale.
+*   **Molecular Mass:** The sum of the atomic masses of all atoms in a molecule.
+*   **Chemical Formula:** A way of expressing information about the proportions of atoms that constitute a particular chemical compound.
+
+## Implementation: Building the Calculator
+
+We'll use Python for the heavy lifting. The primary challenge in parsing a chemical formula is handling subscripts and parentheticals. For simplicity in this example, we will focus on formulas without nested parentheses (e.g., `Ca(NO3)2` is fine, but `Cu(NH3)4(SO4)` would require more complex parsing).
+
+The calculator will maintain a dictionary of atomic weights for common elements. When a formula is entered, it will iterate through the formula, identify elements and their counts, and then compute the total mass.
+
+### Atomic Weights Data
+
+First, let's define the atomic weights for some common elements. This will be stored in a Python dictionary. We'll use values from the IUPAC standard atomic weights.
+
+```{python}
+import pandas as pd
+import re # Regular expression module for parsing
+from sympy import symbols, latex # For LaTeX equations
+from matplotlib import pyplot as plt
+import numpy as np
+
+# Dictionary of standard atomic weights (approximate for common isotopes)
+# Values are in amu (atomic mass units)
+atomic_weights = {
+    'H': 1.008, 'He': 4.003, 'Li': 6.941, 'Be': 9.012, 'B': 10.811,
+    'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Ne': 20.180,
+    'Na': 22.990, 'Mg': 24.305, 'Al': 26.982, 'Si': 28.086, 'P': 30.974,
+    'S': 32.065, 'Cl': 35.453, 'Ar': 39.948, 'K': 39.098, 'Ca': 40.078,
+    'Sc': 44.956, 'Ti': 47.867, 'V': 50.942, 'Cr': 51.996, 'Mn': 54.938,
+    'Fe': 55.845, 'Co': 58.933, 'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.38,
+    'Ga': 69.723, 'Ge': 72.63, 'As': 74.922, 'Se': 78.971, 'Br': 79.904,
+    'Kr': 83.798, 'Rb': 85.468, 'Sr': 87.62, 'Y': 88.906, 'Zr': 91.224,
+    'Nb': 92.906, 'Mo': 95.96, 'Tc': 98.0, 'Ru': 101.07, 'Rh': 102.91,
+    'Pd': 106.42, 'Ag': 107.87, 'Cd': 112.41, 'In': 114.82, 'Sn': 118.71,
+    'Sb': 121.76, 'I': 126.90, 'Xe': 131.29, 'Cs': 132.91, 'Ba': 137.33,
+    'La': 138.91, 'Ce': 140.12, 'Pr': 140.91, 'Nd': 144.24, 'Pm': 145.0,
+    'Sm': 150.36, 'Eu': 151.96, 'Gd': 157.25, 'Tb': 158.93, 'Dy': 162.50,
+    'Ho': 164.93, 'Er': 167.26, 'Tm': 168.93, 'Yb': 173.05, 'Lu': 174.97,
+    'Hf': 178.49, 'Ta': 180.95, 'W': 183.84, 'Re': 186.21, 'Os': 190.23,
+    'Ir': 192.22, 'Pt': 195.08, 'Au': 196.97, 'Hg': 200.59, 'Tl': 204.38,
+    'Pb': 207.2, 'Bi': 208.98, 'Po': 209.0, 'At': 210.0, 'Rn': 222.0,
+    'Fr': 223.0, 'Ra': 226.0, 'Ac': 227.0, 'Pa': 231.04, 'Th': 232.04,
+    'Np': 237.0, 'U': 238.03, 'Am': 243.0, 'Pu': 244.0, 'Cm': 247.0,
+    'Bk': 247.0, 'Cf': 251.0, 'Es': 252.0, 'Fm': 257.0, 'Md': 258.0,
+    'No': 259.0, 'Rf': 261.0, 'Lr': 262.0, 'Db': 262.0, 'Bh': 264.0,
+    'Sg': 266.0, 'Mt': 268.0, 'Rg': 272.0, 'Hs': 277.0
+}
+
+print("Loaded atomic weights for 100+ elements.")
+
+
+
+def parse_formula(formula):
+    """
+    Parses a chemical formula string into a dictionary of element counts.
+    Handles basic formulas and parentheticals.
+
+    Args:
+        formula (str): The chemical formula string (e.g., "H2O", "Ca(NO3)2").
+
+    Returns:
+        dict: A dictionary where keys are element symbols and values are their counts.
+              Returns an empty dict if parsing fails or element not found.
+    """
+    elements = {}
+    # Pattern to match elements (e.g., H, He) and optional numbers (e.g., 2, 10)
+    # Also handles groups in parentheses (e.g., (NO3)2)
+    # Element: [A-Z][a-z]?
+    # Number: [0-9]* (empty string if no number, means count 1)
+    # Group: \(([A-Za-z0-9]+)\)([0-9]*)
+    # This regex is an extension for groups:
+    pattern = re.compile(r'([A-Z][a-z]?)([0-9]*)|(\(([A-Za-z0-9]+)\)([0-9]*))')
+
+    i = 0
+    while i < len(formula):
+        match = pattern.match(formula, i)
+        if not match:
+            # If no match, it could be a parsing error or end of string
+            # For simplicity, we'll stop and report what we've found so far
+            print(f"Warning: Could not parse '{formula[i:]}' in formula '{formula}'")
+            return {} # Return empty to indicate failure or partial parsing
+
+        element_symbol = match.group(1)
+        element_count_str = match.group(2)
+        group_formula = match.group(4)
+        group_multiplier_str = match.group(5)
+
+        if element_symbol: # It's a single element
+            count = int(element_count_str) if element_count_str else 1
+            elements[element_symbol] = elements.get(element_symbol, 0) + count
+            i += len(match.group(0))
+        elif group_formula: # It's a parenthetical group
+            multiplier = int(group_multiplier_str) if group_multiplier_str else 1
+            # Recursively parse the group formula
+            sub_elements = parse_formula(group_formula)
+            for el, num in sub_elements.items():
+                elements[el] = elements.get(el, 0) + (num * multiplier)
+            i += len(match.group(0))
+        else:
+            # Should not happen if regex is comprehensive, but as a safeguard
+            print(f"Error: Unknown parsing state at index {i} in '{formula}'")
+            return {}
+
+    return elements
+
+# Test the parser
+print("\nTesting the formula parser:")
+print(f"H2O: {parse_formula('H2O')}")
+print(f"C6H12O6: {parse_formula('C6H12O6')}")
+print(f"Ca(NO3)2: {parse_formula('Ca(NO3)2')}")
+print(f"Al2(SO4)3: {parse_formula('Al2(SO4)3')}")
+
+
+
+def calculate_atomic_mass(formula):
+    """
+    Calculates the total atomic mass of a chemical formula.
+
+    Args:
+        formula (str): The chemical formula string.
+
+    Returns:
+        tuple: (float, dict) The total atomic mass and a dictionary of element masses,
+               or (None, None) if an unknown element is found or formula fails to parse.
+    """
+    element_counts = parse_formula(formula)
+    if not element_counts:
+        print(f"Error: Could not parse formula '{formula}' or no elements found.")
+        return None, None
+
+    total_mass = 0.0
+    element_masses = {}
+
+    for element, count in element_counts.items():
+        if element in atomic_weights:
+            mass = atomic_weights[element] * count
+            total_mass += mass
+            element_masses[element] = mass
+        else:
+            print(f"Error: Unknown element '{element}' in formula '{formula}'.")
+            return None, None # Indicate failure due to unknown element
+
+    return total_mass, element_masses
+
+# Let's test the full calculator with some examples
+print("\n--- Atomic Mass Calculator Examples ---")
+formulas_to_test = ["H2O", "C6H12O6", "NaCl", "Ca(NO3)2", "Al2(SO4)3", "H2SO4", "CH3COOH"]
+
+results_df_data = []
+
+for formula in formulas_to_test:
+    mass, element_masses = calculate_atomic_mass(formula)
+    if mass is not None:
+        print(f"Formula: {formula}")
+        print(f"  Total Atomic Mass: {mass:.3f} amu")
+        row_data = {"Formula": formula, "Total Mass (amu)": f"{mass:.3f}"}
+        for el, el_mass in element_masses.items():
+            row_data[f"{el} Mass"] = f"{el_mass:.3f}"
+        results_df_data.append(row_data)
+    else:
+        print(f"  Could not calculate mass for {formula} due to errors.")
+        results_df_data.append({"Formula": formula, "Total Mass (amu)": "Error"})
+
+# Creating a DataFrame to display results
+results_df = pd.DataFrame(results_df_data)
+# Fill NaN values with a dash for cleaner display if an element mass column doesn't apply to a formula
+results_df = results_df.fillna("-")
+
+print("\n### Calculation Summary Table")
+print("Here's a summary of the calculations for various chemical formulas:")
+results_df
+
+
+
+#| label: fig-pie-chart
+#| fig-cap: "Mass Contribution of Elements in Glucose (C6H12O6)"
+
+formula_for_viz = "C6H12O6" # Glucose
+mass_glucose, element_masses_glucose = calculate_atomic_mass(formula_for_viz)
+
+if mass_glucose:
+    labels = element_masses_glucose.keys()
+    sizes = element_masses_glucose.values()
+    colors = plt.cm.Paired(np.arange(len(labels))) # Use a colormap for variety
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    wedges, texts, autotexts = ax.pie(sizes, labels=labels, autopct='%1.1f%%',
+                                      startangle=90, colors=colors,
+                                      pctdistance=0.85, wedgeprops={'edgecolor': 'black'})
+
+    # Adjust autopct texts for better visibility if needed
+    for autotext in autotexts:
+        autotext.set_color('white') # Set text color to white for better contrast
+        autotext.set_fontsize(10)
+
+    # Set title and ensure equal aspect ratio for a circular pie chart
+    ax.set_title(f'Mass Contribution in {formula_for_viz} (Total: {mass_glucose:.2f} amu)',
+                 fontsize=14, pad=20)
+    ax.axis('equal') # Equal aspect ratio ensures that pie is drawn as a circle.
+    plt.show()
+else:
+    print(f"Could not generate pie chart for {formula_for_viz}.")
+
+
+
+    # Define symbolic variables using sympy
+n_i = symbols('n_i') # Count of element i
+A_i = symbols('A_i') # Atomic mass of element i
+k = symbols('k') # Number of distinct elements
+M = symbols('M') # Molecular mass
+i_sym = symbols('i') # Index for summation
+
+# Express the summation formula
+molecular_mass_formula = M - sum(n_i * A_i for i_sym in range(k)) # This is conceptual
+
+# A simpler way to show the general equation with sympy's LaTeX output:
+# This creates a more generic sum symbol directly.
+from sympy import Sum, IndexedBase, Idx
+A = IndexedBase('A')
+n = IndexedBase('n')
+i = Idx('i')
+
+molecular_mass_sum_expr = Sum(n[i] * A[i], (i, 1, k))
+
+print("\n### Molecular Mass General Formula (LaTeX via SymPy)")
+print("The general formula for molecular mass (M) can be represented as:")
+print(f"$$M = {latex(molecular_mass_sum_expr)}$$")
