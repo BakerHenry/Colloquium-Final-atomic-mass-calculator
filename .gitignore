@@ -1,3 +1,11 @@
+# Quarto generated files to ignore (if they are not meant for deployment)
+.quarto/
+.venv/
+# Installer files
+*.deb
+*.exe
+*.dmg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
